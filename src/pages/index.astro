@@ -1,16 +1,169 @@
 ---
+import { SUBSCRIBED_USERS_KEY } from '../lib/constants';
+import { sendEmail } from '../lib/send-email';
 
+let alert: { status: 'error' | 'success'; message: string } | undefined =
+  undefined;
+if (Astro.request.method === 'POST') {
+  try {
+    const kv = Astro.locals.runtime.env.NEWS_LETTER_KV;
+    const data = await Astro.request.formData();
+    const email = data.get('email') as string;
+    const currentEmails = JSON.parse(
+      (await kv.get(SUBSCRIBED_USERS_KEY)) ?? '[]',
+    ) as string[];
+    if (currentEmails.includes(email)) {
+      const emailSubscriptionTriesKey = `${email}-tries`;
+      const numberOfTimesSubscribed = JSON.parse(
+        (await kv.get(emailSubscriptionTriesKey)) ?? '1',
+      ) as number;
+      const baseMessage = 'You are already subscribed.';
+      alert = {
+        status: 'error',
+        message:
+          numberOfTimesSubscribed > 4
+            ? `${baseMessage} Please stop spamming us :).`
+            : baseMessage,
+      };
+      await kv.put(
+        emailSubscriptionTriesKey,
+        JSON.stringify(numberOfTimesSubscribed + 1),
+      );
+    } else {
+      currentEmails.push(email);
+      await kv.put('subscribed', JSON.stringify(currentEmails));
+      const sender = Astro.locals.runtime.env.NO_REPLY_EMAIL;
+      await sendEmail(email, sender);
+      alert = {
+        status: 'success',
+        message:
+          "You have been successfully subscribed to Tim's Experiments updates.",
+      };
+    }
+  } catch (error) {
+    alert = {
+      status: 'error',
+      message: 'An unknown error occurred. Please try again.',
+    };
+    if (error instanceof Error) {
+      console.error(error.message);
+    }
+  }
+}
 ---
 
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Urbanist:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>Tim's Experiments</title>
+  </head>
+  <body>
+    <div class="relative flex h-screen w-screen px-6 pt-14 lg:px-8">
+      <div
+        class="absolute inset-x-0 -top-40 transform-gpu overflow-hidden blur-3xl sm:-top-80"
+        aria-hidden="true">
+        <div
+          class="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-red-400 to-teal-vivid-700 opacity-30 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]"
+          style="clip-path: polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)">
+        </div>
+      </div>
+      <div class="mx-auto max-w-2xl py-6 sm:py-24 lg:py-32">
+        <div
+          class="animation mb-12 flex scale-0 justify-center opacity-0 transition duration-700">
+          <img
+            class="h-14"
+            src="/tim_s_experiments_logo_dark.svg"
+            alt="Tim's Experiments"
+          />
+        </div>
+        <div class="hidden sm:mb-8 sm:flex sm:justify-center">
+          <div
+            class="animation relative translate-y-20 rounded-full bg-grey-50/5 px-3 py-1 font-mono text-sm leading-6 text-grey-300 opacity-0 ring-1 ring-grey-50/20 transition delay-100 duration-700 hover:ring-grey-50/40">
+            timothyaltemus.com is becoming Tim's Experiments.
+          </div>
+        </div>
+        <div class="text-center">
+          <h1
+            class="animation trasnition translate-y-20 scale-90 text-4xl font-bold tracking-tight text-grey-50 opacity-0 delay-500 duration-700 sm:text-6xl">
+            Get notified when we're launching.
+          </h1>
+          <p
+            class="animation trasnition mt-6 translate-y-20 font-secondary text-lg leading-8 text-grey-400 opacity-0 delay-500 duration-700">
+            Anim aute id magna aliqua ad ad non deserunt sunt. Qui irure qui
+            lorem cupidatat commodo. Elit sunt amet fugiat veniam occaecat
+            fugiat aliqua.
+          </p>
+          <form
+            method="POST"
+            class="animation trasnition mx-auto mt-10 flex max-w-md translate-y-20 scale-75 gap-x-4 opacity-0 delay-700 duration-700">
+            <label for="email-address" class="sr-only">Email address</label>
+            <input
+              id="email-address"
+              name="email"
+              type="email"
+              autocomplete="email"
+              required
+              class="min-w-0 flex-auto rounded-md border-0 bg-transparent px-3.5 py-2 text-grey-100 shadow-sm ring-1 ring-inset ring-grey-50/20 placeholder:text-grey-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-vivid-600 sm:text-sm sm:leading-6"
+              placeholder="Enter your email"
+            />
+            <button
+              type="submit"
+              class="flex-none rounded-md bg-teal-vivid-600 px-3.5 py-2.5 text-sm font-semibold text-grey-50 shadow-sm hover:bg-teal-vivid-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-vivid-600">
+              Notify me
+            </button>
+            {
+              alert && (
+                <div
+                  class:list={[
+                    'w-full px-4 py-2',
+                    alert.status === 'error'
+                      ? 'border border-red-500 bg-red-300'
+                      : 'bg-grreen-300 border border-green-500',
+                  ]}>
+                  {alert.message}
+                </div>
+              )
+            }
+          </form>
+        </div>
+      </div>
+    </div>
+  </body>
+
+  <script src="../scripts/animate.ts"></script>
+
+  <style>
+    html,
+    body {
+      @apply bg-grey-900 font-primary;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      @apply font-primary;
+    }
+
+    code {
+      @apply font-mono;
+    }
+  </style>
 </html>
