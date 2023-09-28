@@ -1,6 +1,5 @@
 ---
 import { SUBSCRIBED_USERS_KEY } from '../lib/constants';
-import { sendEmail } from '../lib/send-email';
 
 let alert: { status: 'error' | 'success'; message: string } | undefined =
   undefined;
@@ -32,8 +31,11 @@ if (Astro.request.method === 'POST') {
     } else {
       currentEmails.push(email);
       await kv.put('subscribed', JSON.stringify(currentEmails));
-      const sender = Astro.locals.runtime.env.NO_REPLY_EMAIL;
-      await sendEmail(email, sender);
+      const service = Astro.locals.runtime.env.EMAILER_SERVICE;
+      service.fetch('/', {
+        body: JSON.stringify({ email, template: 'SUBSCRIPTION' }),
+        headers: new Headers({ 'x-api-key': Astro.locals.runtime.env.API_KEY }),
+      });
       alert = {
         status: 'success',
         message:
@@ -43,13 +45,15 @@ if (Astro.request.method === 'POST') {
   } catch (error) {
     alert = {
       status: 'error',
-      message: 'An unknown error occurred. Please try again.',
+      message: 'An unknown error occurred. Please try again later.',
     };
     if (error instanceof Error) {
       console.error(error.message);
     }
   }
 }
+
+const initialLoad = !alert || !alert.message;
 ---
 
 <html lang="en">
@@ -84,7 +88,12 @@ if (Astro.request.method === 'POST') {
       </div>
       <div class="mx-auto max-w-2xl py-6 sm:py-24 lg:py-32">
         <div
-          class="animation mb-12 flex scale-0 justify-center opacity-0 transition duration-700">
+          class:list={[
+            initialLoad
+              ? 'animation scale-0 opacity-0 transition duration-700'
+              : '',
+            'mb-12 flex justify-center',
+          ]}>
           <img
             class="h-14"
             src="/tim_s_experiments_logo_dark.svg"
@@ -93,30 +102,51 @@ if (Astro.request.method === 'POST') {
         </div>
         <div class="hidden sm:mb-8 sm:flex sm:justify-center">
           <div
-            class="animation relative translate-y-20 rounded-full bg-grey-50/5 px-3 py-1 font-mono text-sm leading-6 text-grey-300 opacity-0 ring-1 ring-grey-50/20 transition delay-100 duration-700 hover:ring-grey-50/40">
+            class:list={[
+              initialLoad
+                ? 'animation relative translate-y-20 opacity-0 transition delay-100 duration-700'
+                : '',
+              'rounded-full bg-grey-50/5 px-3 py-1 font-mono text-sm leading-6 text-grey-300 ring-1 ring-grey-50/20 hover:ring-grey-50/40',
+            ]}>
             timothyaltemus.com is becoming Tim's Experiments.
           </div>
         </div>
         <div class="text-center">
           <h1
-            class="animation trasnition translate-y-20 scale-90 text-4xl font-bold tracking-tight text-grey-50 opacity-0 delay-500 duration-700 sm:text-6xl">
+            class:list={[
+              initialLoad
+                ? 'animation trasnition translate-y-20 scale-90 opacity-0 delay-500 duration-700'
+                : '',
+              'text-4xl font-bold tracking-tight text-grey-50 sm:text-6xl',
+            ]}>
             Get notified when we're launching.
           </h1>
           <p
-            class="animation trasnition mt-6 translate-y-20 font-secondary text-lg leading-8 text-grey-400 opacity-0 delay-500 duration-700">
+            class:list={[
+              initialLoad
+                ? 'animation translate-y-20 opacity-0 transition delay-500 duration-700'
+                : '',
+              'mt-6 font-secondary text-lg leading-8 text-grey-400',
+            ]}>
             Anim aute id magna aliqua ad ad non deserunt sunt. Qui irure qui
             lorem cupidatat commodo. Elit sunt amet fugiat veniam occaecat
             fugiat aliqua.
           </p>
           <form
             method="POST"
-            class="animation trasnition mx-auto mt-10 flex max-w-md translate-y-20 scale-75 gap-x-4 opacity-0 delay-700 duration-700">
+            class:list={[
+              initialLoad
+                ? 'animation trasnition translate-y-20 scale-75 opacity-0 delay-700 duration-700'
+                : '',
+              'mx-auto mt-10 flex max-w-md gap-x-4',
+            ]}>
             <label for="email-address" class="sr-only">Email address</label>
             <input
               id="email-address"
               name="email"
               type="email"
               autocomplete="email"
+              disabled={alert?.status === 'success'}
               required
               class="min-w-0 flex-auto rounded-md border-0 bg-transparent px-3.5 py-2 text-grey-100 shadow-sm ring-1 ring-inset ring-grey-50/20 placeholder:text-grey-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-vivid-600 sm:text-sm sm:leading-6"
               placeholder="Enter your email"
@@ -126,26 +156,86 @@ if (Astro.request.method === 'POST') {
               class="flex-none rounded-md bg-teal-vivid-600 px-3.5 py-2.5 text-sm font-semibold text-grey-50 shadow-sm hover:bg-teal-vivid-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-vivid-600">
               Notify me
             </button>
-            {
-              alert && (
-                <div
-                  class:list={[
-                    'w-full px-4 py-2',
-                    alert.status === 'error'
-                      ? 'border border-red-500 bg-red-300'
-                      : 'bg-grreen-300 border border-green-500',
-                  ]}>
-                  {alert.message}
-                </div>
-              )
-            }
           </form>
         </div>
       </div>
     </div>
+    {
+      alert && alert?.message && (
+        <div
+          id="toast-alert"
+          class="animation fixed bottom-5 left-5 flex w-full max-w-xs items-center space-x-4 rounded-lg bg-grey-800 p-4 text-grey-400 opacity-0 shadow duration-500"
+          role="alert">
+          <div
+            class:list={[
+              'inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg focus-within:outline-none',
+              alert.status === 'success'
+                ? 'text-teal-vivid-400'
+                : 'text-red-vivid-400',
+            ]}>
+            {alert.status === 'success' ? (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-thumbs-up">
+                <path d="M7 10v12" />
+                <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z" />
+              </svg>
+            ) : (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-alert-circle">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" x2="12" y1="8" y2="12" />
+                <line x1="12" x2="12.01" y1="16" y2="16" />
+              </svg>
+            )}
+            <span class="sr-only">
+              {alert.status === 'success' ? <>Success</> : <>Error</>}
+            </span>
+          </div>
+          <div class="text-sm font-normal">{alert.message}</div>
+          <button
+            type="button"
+            class="-mx-1.5 -my-1.5 ml-auto inline-flex h-8 w-8 items-center justify-center rounded-lg border-l-0 bg-grey-800 p-1.5 text-grey-500 hover:bg-grey-700 hover:text-white focus:ring-2 focus:ring-grey-300"
+            data-dismiss-target="#toast-alert"
+            aria-label="Close">
+            <span class="sr-only">Close</span>
+            <svg
+              class="h-3 w-3"
+              aria-hidden="true"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 14 14">
+              <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"
+              />
+            </svg>
+          </button>
+        </div>
+      )
+    }
   </body>
 
   <script src="../scripts/animate.ts"></script>
+  <script src="../scripts/index.ts"></script>
 
   <style>
     html,

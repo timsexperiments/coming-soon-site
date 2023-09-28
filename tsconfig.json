@@ -4,8 +4,6 @@
     "jsx": "react-jsx",
     "allowJs": true,
     "jsxImportSource": "react",
-    "types": [
-      "@cloudflare/workers-types",
-    ]
+    "types": ["@cloudflare/workers-types"]
   }
 }
