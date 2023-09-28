@@ -1,9 +1,20 @@
 ---
-import { SUBSCRIBED_USERS_KEY } from '../lib/constants';
+import {
+  ERROR,
+  PREVIOUS_ATTEMPT_COOKIE_KEY as REDIRECT_COOKIE_KEY,
+  SUBSCRIBED_USERS_KEY,
+  SUBSCRIPTION_EMAIL_TEMPLATE,
+  SUCCESS,
+  type AlertType,
+} from '../lib/constants';
 
-let alert: { status: 'error' | 'success'; message: string } | undefined =
-  undefined;
+let alert: { status: AlertType; message: string } | undefined = undefined;
+let redirect = Astro.cookies.get(REDIRECT_COOKIE_KEY)?.boolean() ?? false;
 if (Astro.request.method === 'POST') {
+  if (redirect) {
+    Astro.cookies.delete(REDIRECT_COOKIE_KEY);
+    Astro.redirect('/');
+  }
   try {
     const kv = Astro.locals.runtime.env.NEWS_LETTER_KV;
     const data = await Astro.request.formData();
@@ -18,7 +29,7 @@ if (Astro.request.method === 'POST') {
       ) as number;
       const baseMessage = 'You are already subscribed.';
       alert = {
-        status: 'error',
+        status: ERROR,
         message:
           numberOfTimesSubscribed > 4
             ? `${baseMessage} Please stop spamming us :).`
@@ -30,21 +41,21 @@ if (Astro.request.method === 'POST') {
       );
     } else {
       currentEmails.push(email);
-      await kv.put('subscribed', JSON.stringify(currentEmails));
+      await kv.put(SUBSCRIBED_USERS_KEY, JSON.stringify(currentEmails));
       const service = Astro.locals.runtime.env.EMAILER_SERVICE;
       service.fetch('/', {
-        body: JSON.stringify({ email, template: 'SUBSCRIPTION' }),
+        body: JSON.stringify({ email, template: SUBSCRIPTION_EMAIL_TEMPLATE }),
         headers: new Headers({ 'x-api-key': Astro.locals.runtime.env.API_KEY }),
       });
       alert = {
-        status: 'success',
+        status: SUCCESS,
         message:
           "You have been successfully subscribed to Tim's Experiments updates.",
       };
     }
   } catch (error) {
     alert = {
-      status: 'error',
+      status: ERROR,
       message: 'An unknown error occurred. Please try again later.',
     };
     if (error instanceof Error) {
@@ -53,7 +64,11 @@ if (Astro.request.method === 'POST') {
   }
 }
 
-const initialLoad = !alert || !alert.message;
+const initialLoad = Astro.request.method !== 'POST';
+Astro.cookies.set(REDIRECT_COOKIE_KEY, `${alert?.status === 'success'}`, {
+  httpOnly: true,
+  sameSite: 'lax',
+});
 ---
 
 <html lang="en">
@@ -132,80 +147,84 @@ const initialLoad = !alert || !alert.message;
             lorem cupidatat commodo. Elit sunt amet fugiat veniam occaecat
             fugiat aliqua.
           </p>
-          <form
-            method="POST"
-            class:list={[
-              initialLoad
-                ? 'animation trasnition translate-y-20 scale-75 opacity-0 delay-700 duration-700'
-                : '',
-              'mx-auto mt-10 flex max-w-md gap-x-4',
-            ]}>
-            <label for="email-address" class="sr-only">Email address</label>
-            <input
-              id="email-address"
-              name="email"
-              type="email"
-              autocomplete="email"
-              disabled={alert?.status === 'success'}
-              required
-              class="min-w-0 flex-auto rounded-md border-0 bg-transparent px-3.5 py-2 text-grey-100 shadow-sm ring-1 ring-inset ring-grey-50/20 placeholder:text-grey-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-vivid-600 sm:text-sm sm:leading-6"
-              placeholder="Enter your email"
-            />
-            <button
-              type="submit"
-              class="flex-none rounded-md bg-teal-vivid-600 px-3.5 py-2.5 text-sm font-semibold text-grey-50 shadow-sm hover:bg-teal-vivid-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-vivid-600">
-              Notify me
-            </button>
-          </form>
+          {
+            alert?.status === SUCCESS ? (
+              <div
+                class="animation mx-auto mb-4  mt-10 flex w-fit items-center rounded-lg bg-grey-800 p-4 text-sm text-emerald-400 opacity-0 duration-500"
+                role="alert">
+                <svg
+                  class="mr-3 inline h-4 w-4 flex-shrink"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="lucide lucide-thumbs-up">
+                  <path d="M7 10v12" />
+                  <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z" />
+                </svg>
+                <span class="sr-only">Success</span>
+                <div>
+                  Thank you for your interest, we will notify you when we
+                  launch!
+                </div>
+              </div>
+            ) : (
+              <form
+                method="POST"
+                class:list={[
+                  initialLoad
+                    ? 'animation trasnition translate-y-20 scale-75 opacity-0 delay-700 duration-700'
+                    : '',
+                  'mx-auto mt-10 flex max-w-md gap-x-4',
+                ]}>
+                <input name="previous-submission-status" type="hidden" />
+                <label for="email-address" class="sr-only">
+                  Email address
+                </label>
+                <input
+                  id="email-address"
+                  name="email"
+                  type="email"
+                  autocomplete="email"
+                  required
+                  class="min-w-0 flex-auto rounded-md border-0 bg-transparent px-3.5 py-2 text-grey-100 shadow-sm ring-1 ring-inset ring-grey-700 placeholder:text-grey-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-vivid-600 disabled:cursor-not-allowed disabled:bg-grey-800/40 disabled:ring-grey-800 disabled:placeholder:text-grey-600 sm:text-sm sm:leading-6"
+                  placeholder="Enter your email"
+                />
+                <button
+                  class="flex-none rounded-md bg-teal-vivid-600 px-3.5 py-2.5 text-sm font-semibold text-grey-50 shadow-sm hover:bg-teal-vivid-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-vivid-600 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:bg-teal-vivid-600"
+                  type="submit">
+                  Notify me
+                </button>
+              </form>
+            )
+          }
         </div>
       </div>
     </div>
     {
-      alert && alert?.message && (
+      alert && alert.message && alert.status === ERROR && (
         <div
           id="toast-alert"
           class="animation fixed bottom-5 left-5 flex w-full max-w-xs items-center space-x-4 rounded-lg bg-grey-800 p-4 text-grey-400 opacity-0 shadow duration-500"
           role="alert">
-          <div
-            class:list={[
-              'inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg focus-within:outline-none',
-              alert.status === 'success'
-                ? 'text-teal-vivid-400'
-                : 'text-red-vivid-400',
-            ]}>
-            {alert.status === 'success' ? (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="lucide lucide-thumbs-up">
-                <path d="M7 10v12" />
-                <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z" />
-              </svg>
-            ) : (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="lucide lucide-alert-circle">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" x2="12" y1="8" y2="12" />
-                <line x1="12" x2="12.01" y1="16" y2="16" />
-              </svg>
-            )}
-            <span class="sr-only">
-              {alert.status === 'success' ? <>Success</> : <>Error</>}
-            </span>
+          <div class="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-red-vivid-400 focus-within:outline-none">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="lucide lucide-alert-circle">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" x2="12" y1="8" y2="12" />
+              <line x1="12" x2="12.01" y1="16" y2="16" />
+            </svg>
+            <span class="sr-only">Error</span>
           </div>
           <div class="text-sm font-normal">{alert.message}</div>
           <button
