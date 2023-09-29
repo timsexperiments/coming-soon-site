@@ -101,7 +101,7 @@ Astro.cookies.set(REDIRECT_COOKIE_KEY, `${alert?.status === 'success'}`, {
           style="clip-path: polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)">
         </div>
       </div>
-      <div class="mx-auto max-w-2xl py-6 sm:py-24 lg:py-32">
+      <div class="mx-auto max-w-2xl py-6 sm:py-14 lg:py-20">
         <div
           class:list={[
             initialLoad
@@ -143,9 +143,20 @@ Astro.cookies.set(REDIRECT_COOKIE_KEY, `${alert?.status === 'success'}`, {
                 : '',
               'mt-6 font-secondary text-lg leading-8 text-grey-400',
             ]}>
-            Anim aute id magna aliqua ad ad non deserunt sunt. Qui irure qui
-            lorem cupidatat commodo. Elit sunt amet fugiat veniam occaecat
-            fugiat aliqua.
+            Get ready to discover a digital playground where software's
+            boundaries are pushed, explored, and redefined. Dive into
+            professional insights, in-depth topics, practical code snippets, toy
+            projects, and fresh takes on emerging tech. Interested in the type
+            of projects up ahead? Take a peek at this {' '}
+            <a
+              class="text-teal-vivid-400 hover:text-teal-vivid-500 focus:text-teal-vivid-500 focus:underline focus-visible:outline-none"
+              href="https://chat.timothyaltemus.com"
+              target="_blank"
+              rel="noopener noreferrer">
+              chat app
+            </a>
+            {' '}built on Cloudflare Edge. Stay connected for more exciting
+            content ahead.
           </p>
           {
             alert?.status === SUCCESS ? (
